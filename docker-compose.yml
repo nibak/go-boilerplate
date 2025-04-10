@@ -1,0 +1,71 @@
+services:
+  api-service:
+    container_name: api_service
+    build:
+      context: .
+      dockerfile: ci/development/Dockerfile
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - api_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      start_interval: 1s
+      start_period: 1s
+      interval: 3s
+      timeout: 10s
+      retries: 3
+
+  mysql:
+    container_name: mysql
+    image: mysql:8.4
+    restart: always
+    env_file:
+      - path: .env
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - api_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "demo", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  
+  #You can remove the seeder if you not using it
+  mysql_seeder:
+    container_name: mysql_seeder
+    image: golang:1.24.0
+    working_dir: /app
+    command: /bin/bash -c "go run cmd/seeder/*.go"
+    restart: no
+    depends_on:
+      mysql:
+        condition: service_healthy
+      api-service:
+        condition: service_healthy
+    networks:
+      - api_network
+    volumes:
+      - .:/app
+    env_file:
+    - path: .env
+
+
+networks:
+  api_network:
+    name: api_network
+
+volumes:
+  mysql_data:
